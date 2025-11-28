@@ -55,7 +55,7 @@ class ColorPalette:
 @dataclass(frozen=True)
 class AppConfig:
     APP_NAME: str = "ITKAP Intelligence Suite"
-    APP_VERSION: str = "3.3.6"
+    APP_VERSION: str = "3.3.9"
     APP_ICON: str = "🔷"
     COMPANY_NAME: str = "ITKAP Consulting"
     

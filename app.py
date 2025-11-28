@@ -1,6 +1,6 @@
 """
 ITKAP INTELLIGENCE SUITE - MAIN APPLICATION
-Version: 3.3.6 (Heatmap - Values in Cells)
+Version: 3.3.9 (Navigation Fixed - Two Independent Blocks)
 """
 import streamlit as st
 from streamlit_option_menu import option_menu
@@ -389,7 +389,7 @@ if AppState.has_data() and selected != "Inicio":
         c1, c2 = st.columns(2)
         with c1: st.plotly_chart(create_ranking_chart(df_plot.mean(axis=1), 5, 'top'), use_container_width=True)
         with c2: st.plotly_chart(create_ranking_chart(df_plot.mean(axis=1), 5, 'bottom'), use_container_width=True)
-
+    
     elif selected == "Análisis Individual":
         # Calcular métricas organizacionales
         org_metrics = metrics_calculator.calculate_organizational_metrics(df_plot)
@@ -419,7 +419,7 @@ if AppState.has_data() and selected != "Inicio":
         st.plotly_chart(create_gap_chart(df_plot.loc[empleado], df_plot.mean(), "Semáforo de Brechas"), use_container_width=True)
         
         table.render_comparison_table(df_plot.loc[empleado], df_plot.mean())
-
+    
     elif selected == "Rankings":
         # Detectar escala automáticamente
         scale_info = AppState.get_scale_info(df_plot)
@@ -457,7 +457,7 @@ if AppState.has_data() and selected != "Inicio":
         
         # Renderizar con estilo personalizado
         st.dataframe(styled_rank, use_container_width=True, height=500)
-
+    
     elif selected == "Matriz de Calor":
         # Detectar escala automáticamente
         scale_info = AppState.get_scale_info(df_plot)
@@ -467,7 +467,7 @@ if AppState.has_data() and selected != "Inicio":
         
         stats_df = metrics_calculator.calculate_competency_stats(df_plot)
         table.render_styled_dataframe(stats_df)
-
+    
     elif selected == "Reporte General":
         # Calcular métricas organizacionales
         org_metrics = metrics_calculator.calculate_organizational_metrics(df_plot)
@@ -478,7 +478,7 @@ if AppState.has_data() and selected != "Inicio":
         
         html_rep = report_generator.generate_executive_report(df_plot, org_metrics['avg_overall'], org_metrics['total_employees'], org_metrics['total_competencies'])
         button.render_download_button("Descargar HTML", html_rep, f"Reporte_{datetime.now().strftime('%Y%m%d')}.html")
-
+    
 # Footer
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 st.markdown(f"<div style='text-align: center; color: #aaa;'>{CONFIG.APP_NAME} v{CONFIG.APP_VERSION} © 2025</div>", unsafe_allow_html=True)
