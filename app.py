@@ -481,4 +481,4 @@ if AppState.has_data() and selected != "Inicio":
 
 # Footer
 st.markdown("<br><br><br>", unsafe_allow_html=True)
-st.markdown(f"<div style='text-align: center; color: #aaa;'>{CONFIG.APP_NAME} v3.1.1 © 2025</div>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align: center; color: #aaa;'>{CONFIG.APP_NAME} v{CONFIG.APP_VERSION} © 2025</div>", unsafe_allow_html=True)
