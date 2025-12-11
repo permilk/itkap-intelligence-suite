@@ -1,484 +1,775 @@
 """
-ITKAP INTELLIGENCE SUITE - MAIN APPLICATION
-Version: 3.3.9 (Navigation Fixed - Two Independent Blocks)
+ITKAP Intelligence Suite - Sistema Configurable de Análisis de Competencias HR
+Versión: 2.0 - Con Panel de Configuración y Exportación Múltiple
 """
+
 import streamlit as st
-from streamlit_option_menu import option_menu
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime
-import logging
+import json
+import io
+import base64
+from pathlib import Path
+import zipfile
+from pptx_generator import generar_presentacion
 
-from config import CONFIG, COLORS, MESSAGES
-from data_service import data_service, metrics_calculator
-from charts import (
-    create_comparison_chart, create_ranking_chart, 
-    create_heatmap, create_histogram, create_radar_chart
-)
-from ui_components import ui, nav, uploader, table, button, stats
-from report_generator import report_generator
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# ═══════════════════════════════════════════════════════════════════════════
-# STATE MANAGEMENT
-# ═══════════════════════════════════════════════════════════════════════════
-class AppState:
-    @staticmethod
-    def initialize_session_state():
-        if 'data' not in st.session_state: st.session_state.data = None
-        if 'competency_map' not in st.session_state: st.session_state.competency_map = None
-        if 'upload_timestamp' not in st.session_state: st.session_state.upload_timestamp = None
-        if 'current_page' not in st.session_state: st.session_state.current_page = "Inicio"
-    
-    @staticmethod
-    def has_data() -> bool:
-        return st.session_state.data is not None
-    
-    @staticmethod
-    def set_page(page: str):
-        st.session_state.current_page = page
-    
-    @staticmethod
-    def get_page() -> str:
-        return st.session_state.get('current_page', 'Inicio')
-    
-    @staticmethod
-    def get_scale_info(df_plot) -> dict:
-        """Detecta automáticamente la escala de los datos y devuelve info de formato"""
-        if df_plot.empty:
-            return {'type': 'rango', 'format': '{:.2f}', 'suffix': '', 'max': 5}
-        
-        max_val = df_plot.max().max()
-        
-        if max_val <= 5.5:
-            return {
-                'type': 'rango',
-                'format': '{:.2f}',
-                'suffix': '',
-                'max': 5,
-                'label': 'Rango (0-5)'
-            }
-        elif max_val <= 10.5:
-            return {
-                'type': 'puntos',
-                'format': '{:.1f}',
-                'suffix': '',
-                'max': 10,
-                'label': 'Puntos (0-10)'
-            }
-        else:
-            return {
-                'type': 'porcentaje',
-                'format': '{:.1f}',
-                'suffix': '%',
-                'max': 100,
-                'label': 'Porcentaje (%)'
-            }
-
+# Configuración de la página
 st.set_page_config(
-    page_title=CONFIG.APP_NAME,
-    page_icon=CONFIG.APP_ICON,
-    layout=CONFIG.LAYOUT,
-    initial_sidebar_state=CONFIG.SIDEBAR_STATE
+    page_title="ITKAP Intelligence Suite",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Inject CSS
-st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-    * {{ font-family: 'Inter', sans-serif; }}
-    .stApp {{ background-color: {COLORS.BACKGROUND}; }}
-    section[data-testid="stSidebar"] {{ background: {COLORS.PRIMARY}; }}
-    h1, h2, h3 {{ color: {COLORS.PRIMARY}; }}
-    div[data-testid="metric-container"] {{
-        background-color: white; border: 1px solid {COLORS.GRAY_LIGHT};
-        border-left: 4px solid {COLORS.SECONDARY}; padding: 15px; border-radius: 8px;
-    }}
-    [data-testid='stFileUploader'] section {{ background-color: white; border: 2px dashed {COLORS.SECONDARY}; }}
-    .stRadio > label {{ color: white !important; font-weight: 600; }}
-    .stRadio div[role='radiogroup'] > label {{ color: white !important; }}
-    </style>
+# CSS personalizado
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1e3a8a;
+        margin-bottom: 0.5rem;
+    }
+    .sub-header {
+        font-size: 1.2rem;
+        color: #64748b;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .stDownloadButton button {
+        background-color: #10b981;
+        color: white;
+        font-weight: 600;
+    }
+</style>
 """, unsafe_allow_html=True)
 
-AppState.initialize_session_state()
+# ==================== FUNCIONES AUXILIARES ====================
 
-# ═══════════════════════════════════════════════════════════════════════════
-# SIDEBAR
-# ═══════════════════════════════════════════════════════════════════════════
-with st.sidebar:
-    nav.render_sidebar_header()
+def load_configuration():
+    """Carga la configuración guardada o retorna valores por defecto"""
+    default_config = {
+        "orden_heatmap": "Promedio (mayor a menor)",
+        "mostrar_valores_heatmap": True,
+        "esquema_colores": "RdYlGn",
+        "umbral_bajo": 3.0,
+        "umbral_alto": 4.0,
+        "graficos_incluir": {
+            "heatmap": True,
+            "top10": True,
+            "distribucion": True,
+            "barras_competencias": True,
+            "radar": False
+        },
+        "formato_exportacion": ["PDF", "PowerPoint", "Excel", "Imágenes"],
+        "nombre_empresa": "",
+        "mostrar_promedios": True
+    }
     
-    # --- CONTROL DE ESCALA (FILTRO) ---
-    scale_mode = "Rango (0-5)" # Default
-    if AppState.has_data():
-        st.markdown("---")
-        st.markdown("<h4 style='color:white; margin:0;'>⚙️ Configuración</h4>", unsafe_allow_html=True)
-        
-        # CSS para hacer visible el texto del radio Y los botones
-        st.markdown("""
-        <style>
-        /* Título del radio */
-        div[data-testid="stRadio"] > label {
-            color: white !important;
-            font-weight: 500;
-        }
-        /* Opciones del radio */
-        div[data-testid="stRadio"] label[data-baseweb="radio"] {
-            color: white !important;
-        }
-        div[data-testid="stRadio"] label[data-baseweb="radio"] span {
-            color: white !important;
-        }
-        /* Texto dentro del radio */
-        div[data-testid="stRadio"] label[data-baseweb="radio"] > div {
-            color: white !important;
-        }
-        /* Radio buttons visibles - círculos */
-        div[data-testid="stRadio"] input[type="radio"] {
-            accent-color: #ff6b35 !important;
-            width: 18px !important;
-            height: 18px !important;
-            cursor: pointer !important;
-        }
-        /* Radio button container */
-        div[data-testid="stRadio"] > div[role="radiogroup"] > label {
-            background-color: rgba(255, 255, 255, 0.05) !important;
-            padding: 8px 12px !important;
-            border-radius: 6px !important;
-            margin: 4px 0 !important;
-            cursor: pointer !important;
-        }
-        /* Radio button cuando está seleccionado */
-        div[data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) {
-            background-color: rgba(255, 107, 53, 0.2) !important;
-            border: 1px solid #ff6b35 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        scale_mode = st.radio(
-            "Escala de Visualización",
-            ["Rango (0-5)", "Porcentaje (0-100)"],
-            index=0,
-            help="Elige si ver los datos en escala de 0 a 5 o en porcentaje."
-        )
-    # ----------------------------------
+    if 'config' not in st.session_state:
+        st.session_state.config = default_config
+    
+    return st.session_state.config
 
-    # CSS GLOBAL para eliminar fondos del option_menu
-    st.markdown("""
-    <style>
-    /* Eliminar todos los fondos del menú */
-    nav[data-testid="stSidebarNav"] {
-        background-color: transparent !important;
-    }
-    div[data-testid="stSidebarNav"] {
-        background-color: transparent !important;
-    }
-    /* Forzar que el contenedor del option_menu sea transparente */
-    .css-17lntkn, .css-pkbazv {
-        background-color: transparent !important;
-    }
-    /* Eliminar todos los fondos de divs en sidebar */
-    section[data-testid="stSidebar"] div {
-        background-color: transparent !important;
-    }
-    /* Específicamente para nav-menu */
-    nav.css-1544g2n {
-        background-color: transparent !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+def save_configuration(config):
+    """Guarda la configuración en session_state"""
+    st.session_state.config = config
+    st.success("✅ Configuración guardada correctamente")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    selected = option_menu(
-        menu_title=None,
-        options=["Inicio", "Dashboard General", "Análisis Individual", "Rankings", "Matriz de Calor", "Reporte General"],
-        icons=["house-fill", "graph-up", "person-circle", "trophy-fill", "grid-3x3-gap-fill", "file-earmark-text-fill"],
-        menu_icon="cast", 
-        default_index=0,
-        key="main_navigation",
-        styles={
-            "container": {
-                "padding": "0!important", 
-                "background-color": "transparent",
-                "border": "none"
+def process_data(df, nombre_col='Nombre'):
+    """Procesa los datos y calcula métricas"""
+    # Identificar columnas de competencias (numéricas)
+    competencias_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    
+    # Crear DataFrame de competencias
+    df_competencias = df[competencias_cols].copy()
+    df_info = df[[nombre_col]].copy()
+    
+    # Calcular promedio por empleado
+    df_info['Promedio'] = df_competencias.mean(axis=1)
+    
+    # Calcular estadísticas por competencia
+    stats_competencias = pd.DataFrame({
+        'Competencia': competencias_cols,
+        'Promedio': df_competencias.mean().values,
+        'Mediana': df_competencias.median().values,
+        'Mínimo': df_competencias.min().values,
+        'Máximo': df_competencias.max().values,
+        'Desv_Std': df_competencias.std().values
+    })
+    
+    return df_competencias, df_info, stats_competencias, competencias_cols
+
+def detectar_grupos_competencias(competencias_nombres):
+    """Detecta automáticamente grupos de competencias basados en nombres comunes"""
+    # Intentar cargar configuración personalizada
+    try:
+        from config_grupos import GRUPOS_COMPETENCIAS
+        grupos = GRUPOS_COMPETENCIAS
+    except ImportError:
+        # Usar configuración por defecto
+        grupos = {
+            'Operaciones Administrativas e Intelectuales': {
+                'color': '#6495ED',  # Azul
+                'keywords': ['Análisis', 'Aprendizaje', 'Control', 'Enfoque', 'Organización', 
+                            'Perseverancia', 'Pensamiento', 'Planificación', 'Orientación',
+                            'Estratégico', 'Resultados', 'Administrativo', 'Problemas']
             },
-            "icon": {
-                "color": "#1e3a5f",  # Azul oscuro para íconos no seleccionados
-                "font-size": "20px"  # Íconos más grandes
+            'Orientadas a las Relaciones': {
+                'color': '#DC143C',  # Rojo
+                'keywords': ['Comunicación', 'Relación', 'Interacción', 'Trabajo en Equipo',
+                            'Persuasión', 'Negociación', 'Colaboración', 'Influencia',
+                            'Efectiva', 'Interpersonal']
             },
-            "nav-link": {
-                "font-size": "15px",  # Texto un poco más grande
-                "margin": "3px 0", 
-                "padding": "12px 16px",  # Más espacio (antes 8px 12px)
-                "color": "#1e3a5f",
-                "background-color": "transparent",
-                "border": "none",
-                "border-radius": "6px"
-            },
-            "nav-link-selected": {
-                "background-color": COLORS.SECONDARY,
-                "color": "#ffffff",
-                "font-weight": "600"
-            },
+            'Orientadas a Sí Mismo': {
+                'color': '#32CD32',  # Verde
+                'keywords': ['Delegación', 'Liderazgo', 'Autocontrol', 'Iniciativa',
+                            'Responsabilidad', 'Autonomía', 'Desarrollo', 'Personal']
+            }
         }
+    
+    # Asignar cada competencia a un grupo
+    competencias_grupos = {}
+    for competencia in competencias_nombres:
+        asignado = False
+        for grupo_nombre, grupo_info in grupos.items():
+            for keyword in grupo_info['keywords']:
+                if keyword.lower() in competencia.lower():
+                    competencias_grupos[competencia] = {
+                        'grupo': grupo_nombre,
+                        'color': grupo_info['color']
+                    }
+                    asignado = True
+                    break
+            if asignado:
+                break
+        
+        # Si no se asignó, va al primer grupo por defecto
+        if not asignado:
+            primer_grupo = list(grupos.keys())[0]
+            competencias_grupos[competencia] = {
+                'grupo': primer_grupo,
+                'color': grupos[primer_grupo]['color']
+            }
+    
+    return competencias_grupos
+
+def crear_heatmap(df_competencias, df_info, config):
+    """Crea el mapa de calor ordenado según configuración con grupos de competencias"""
+    # Combinar datos
+    df_viz = df_info.copy()
+    df_viz = pd.concat([df_viz, df_competencias], axis=1)
+    
+    # Ordenar según configuración
+    orden = config.get("orden_heatmap", "Promedio (mayor a menor)")
+    
+    if orden == "Promedio (mayor a menor)":
+        df_viz = df_viz.sort_values('Promedio', ascending=False)
+    elif orden == "Promedio (menor a mayor)":
+        df_viz = df_viz.sort_values('Promedio', ascending=True)
+    elif orden == "Alfabético":
+        df_viz = df_viz.sort_values('Nombre')
+    
+    # Preparar datos para heatmap
+    nombres = df_viz['Nombre'].values
+    promedios = df_viz['Promedio'].values
+    competencias_data = df_viz.drop(['Nombre', 'Promedio'], axis=1).values
+    competencias_nombres = df_viz.drop(['Nombre', 'Promedio'], axis=1).columns.tolist()
+    
+    # Detectar grupos de competencias
+    grupos_comp = detectar_grupos_competencias(competencias_nombres)
+    
+    # Crear heatmap
+    esquema = config.get("esquema_colores", "RdYlGn")
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=competencias_data,
+        x=competencias_nombres,
+        y=[f"{nombre} ({prom:.2f})" for nombre, prom in zip(nombres, promedios)],
+        colorscale=esquema,
+        text=competencias_data if config.get("mostrar_valores_heatmap", True) else None,
+        texttemplate='%{text:.2f}' if config.get("mostrar_valores_heatmap", True) else None,
+        textfont={"size": 10},
+        colorbar=dict(title="Nivel", thickness=15)
+    ))
+    
+    # Agregar colores de fondo para grupos en el eje X
+    shapes = []
+    annotations = []
+    
+    # Organizar competencias por grupo
+    grupos_ordenados = {}
+    for i, comp in enumerate(competencias_nombres):
+        grupo_nombre = grupos_comp[comp]['grupo']
+        if grupo_nombre not in grupos_ordenados:
+            grupos_ordenados[grupo_nombre] = []
+        grupos_ordenados[grupo_nombre].append((i, comp, grupos_comp[comp]['color']))
+    
+    # Agregar rectángulos y anotaciones para cada grupo
+    y_pos = len(nombres) + 0.5
+    for grupo_nombre, items in grupos_ordenados.items():
+        if items:
+            x_start = min([item[0] for item in items]) - 0.5
+            x_end = max([item[0] for item in items]) + 0.5
+            color = items[0][2]
+            
+            # Rectángulo de fondo
+            shapes.append(dict(
+                type="rect",
+                xref="x",
+                yref="y",
+                x0=x_start,
+                y0=y_pos - 0.3,
+                x1=x_end,
+                y1=y_pos + 0.3,
+                fillcolor=color,
+                opacity=0.3,
+                layer="below",
+                line_width=0,
+            ))
+            
+            # Anotación del nombre del grupo
+            annotations.append(dict(
+                x=(x_start + x_end) / 2,
+                y=y_pos,
+                text=grupo_nombre,
+                showarrow=False,
+                font=dict(size=9, color="black", family="Arial Black"),
+                xanchor="center",
+                yanchor="middle"
+            ))
+    
+    fig.update_layout(
+        title="Mapa de Calor de Competencias por Colaborador (Ordenado por Promedio)",
+        xaxis_title="Competencias",
+        yaxis_title="Colaboradores",
+        height=max(650, len(nombres) * 30),
+        font=dict(size=11),
+        margin=dict(l=200, r=50, t=100, b=150),
+        xaxis=dict(tickangle=-45),
+        shapes=shapes,
+        annotations=annotations
     )
     
-    # CSS adicional para hacer íconos blancos cuando está seleccionado
-    st.markdown("""
-    <style>
-    /* Íconos blancos en item seleccionado */
-    nav[data-testid="stSidebarNav"] a[aria-current="page"] svg {
-        color: white !important;
-        fill: white !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    nav.render_sidebar_footer(AppState.has_data())
+    return fig
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# LOGIC
-# ═══════════════════════════════════════════════════════════════════════════
-
-if selected == "Inicio":
-    ui.render_page_header(CONFIG.APP_NAME, "Sistema Profesional de Análisis de Competencias")
+def crear_heatmap_promedios(df_competencias):
+    """Crea un mapa de calor con solo el promedio de cada competencia"""
+    # Calcular promedio por competencia
+    promedios = df_competencias.mean().values
+    competencias_nombres = df_competencias.columns.tolist()
     
-    col1, col2, col3 = st.columns(3)
-    with col1: ui.render_info_card("1. Carga", "Sube el archivo Excel exportado desde PsycoSource.", "📁", "info")
-    with col2: ui.render_info_card("2. Proceso", "Validación automática de estructura y datos.", "⚙️", "success")
-    with col3: ui.render_info_card("3. Análisis", "Dashboards interactivos y reportes ejecutivos.", "📊", "default")
+    # Detectar grupos
+    grupos_comp = detectar_grupos_competencias(competencias_nombres)
     
-    uploaded_file = uploader.render_upload_area()
+    # Crear heatmap de una sola fila
+    fig = go.Figure(data=go.Heatmap(
+        z=[promedios],
+        x=competencias_nombres,
+        y=['Promedio Organizacional'],
+        colorscale='RdYlGn',
+        text=[promedios],
+        texttemplate='%{text:.2f}',
+        textfont={"size": 12, "color": "black"},
+        colorbar=dict(title="Nivel", thickness=15),
+        zmin=1,
+        zmax=5
+    ))
+    
+    # Agregar colores de fondo para grupos
+    shapes = []
+    annotations = []
+    
+    grupos_ordenados = {}
+    for i, comp in enumerate(competencias_nombres):
+        grupo_nombre = grupos_comp[comp]['grupo']
+        if grupo_nombre not in grupos_ordenados:
+            grupos_ordenados[grupo_nombre] = []
+        grupos_ordenados[grupo_nombre].append((i, comp, grupos_comp[comp]['color']))
+    
+    # Agregar rectángulos y anotaciones
+    for grupo_nombre, items in grupos_ordenados.items():
+        if items:
+            x_start = min([item[0] for item in items]) - 0.5
+            x_end = max([item[0] for item in items]) + 0.5
+            color = items[0][2]
+            
+            shapes.append(dict(
+                type="rect",
+                xref="x",
+                yref="paper",
+                x0=x_start,
+                y0=1.02,
+                x1=x_end,
+                y1=1.15,
+                fillcolor=color,
+                opacity=0.4,
+                layer="below",
+                line_width=1,
+            ))
+            
+            annotations.append(dict(
+                x=(x_start + x_end) / 2,
+                y=1.085,
+                yref="paper",
+                text=f"<b>{grupo_nombre}</b>",
+                showarrow=False,
+                font=dict(size=10, color="black"),
+                xanchor="center"
+            ))
+    
+    fig.update_layout(
+        title="Mapa de Calor - Promedio Organizacional por Competencia",
+        xaxis_title="Competencias",
+        height=250,
+        font=dict(size=11),
+        margin=dict(l=150, r=50, t=120, b=150),
+        xaxis=dict(tickangle=-45),
+        shapes=shapes,
+        annotations=annotations,
+        yaxis=dict(showticklabels=True)
+    )
+    
+    return fig
+
+def crear_top10(df_info):
+    """Crea gráfico de top 10 colaboradores"""
+    top10 = df_info.nlargest(10, 'Promedio')
+    
+    fig = go.Figure(data=[
+        go.Bar(
+            x=top10['Promedio'],
+            y=top10['Nombre'],
+            orientation='h',
+            marker=dict(
+                color=top10['Promedio'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title="Promedio")
+            ),
+            text=top10['Promedio'].round(2),
+            textposition='outside'
+        )
+    ])
+    
+    fig.update_layout(
+        title="Top 10 Colaboradores por Promedio de Competencias",
+        xaxis_title="Promedio",
+        yaxis_title="Colaborador",
+        height=500,
+        showlegend=False
+    )
+    
+    return fig
+
+def crear_barras_competencias(stats_competencias):
+    """Crea gráfico de barras de competencias organizacionales (estilo imagen)"""
+    # Ordenar por promedio descendente
+    stats_ordenadas = stats_competencias.sort_values('Promedio', ascending=False)
+    
+    fig = go.Figure(data=[
+        go.Bar(
+            x=stats_ordenadas['Competencia'],
+            y=stats_ordenadas['Promedio'],
+            marker=dict(color='#e91e63'),  # Color rosa/magenta como en la imagen
+            text=stats_ordenadas['Promedio'].round(1),
+            textposition='outside',
+            textfont=dict(size=12, color='black')
+        )
+    ])
+    
+    fig.update_layout(
+        title="Análisis de Competencias Organizacionales",
+        xaxis_title="",
+        yaxis_title="Nivel (0-5)",
+        height=500,
+        showlegend=False,
+        yaxis=dict(range=[0, 5]),
+        xaxis=dict(tickangle=-45),
+        font=dict(size=10),
+        margin=dict(b=150)
+    )
+    
+    return fig
+
+def crear_distribucion(df_info, config):
+    """Crea gráfico de distribución de promedios"""
+    umbral_bajo = config.get("umbral_bajo", 3.0)
+    umbral_alto = config.get("umbral_alto", 4.0)
+    
+    # Clasificar colaboradores
+    df_info['Categoria'] = pd.cut(
+        df_info['Promedio'],
+        bins=[0, umbral_bajo, umbral_alto, 5],
+        labels=['Bajo', 'Medio', 'Alto']
+    )
+    
+    conteo = df_info['Categoria'].value_counts()
+    
+    fig = go.Figure(data=[
+        go.Bar(
+            x=conteo.index,
+            y=conteo.values,
+            marker=dict(
+                color=['#ef4444', '#f59e0b', '#10b981'],
+            ),
+            text=conteo.values,
+            textposition='outside'
+        )
+    ])
+    
+    fig.update_layout(
+        title="Distribución de Colaboradores por Nivel de Desempeño",
+        xaxis_title="Categoría",
+        yaxis_title="Cantidad de Colaboradores",
+        height=400,
+        showlegend=False
+    )
+    
+    return fig
+
+def exportar_a_excel(df, df_competencias, df_info, stats_competencias, nombre_empresa):
+    """Exporta datos a Excel con múltiples hojas"""
+    output = io.BytesIO()
+    
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Hoja 1: Datos completos
+        df.to_excel(writer, sheet_name='Datos Completos', index=False)
+        
+        # Hoja 2: Competencias con promedios
+        df_export = pd.concat([df_info, df_competencias], axis=1)
+        df_export = df_export.sort_values('Promedio', ascending=False)
+        df_export.to_excel(writer, sheet_name='Competencias Ordenadas', index=False)
+        
+        # Hoja 3: Estadísticas
+        stats_competencias.to_excel(writer, sheet_name='Estadísticas', index=False)
+        
+        # Hoja 4: Resumen Ejecutivo
+        resumen = pd.DataFrame({
+            'Métrica': [
+                'Total Colaboradores',
+                'Total Competencias Evaluadas',
+                'Promedio General',
+                'Mejor Colaborador',
+                'Peor Colaborador'
+            ],
+            'Valor': [
+                len(df_info),
+                len(stats_competencias),
+                f"{df_info['Promedio'].mean():.2f}",
+                df_info.loc[df_info['Promedio'].idxmax(), 'Nombre'],
+                df_info.loc[df_info['Promedio'].idxmin(), 'Nombre']
+            ]
+        })
+        resumen.to_excel(writer, sheet_name='Resumen Ejecutivo', index=False)
+    
+    output.seek(0)
+    return output
+
+def crear_zip_imagenes(figuras_dict):
+    """Crea un ZIP con todas las imágenes de los gráficos"""
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for nombre, fig in figuras_dict.items():
+            # Convertir a PNG
+            img_bytes = fig.to_image(format="png", width=1920, height=1080, scale=2)
+            zip_file.writestr(f"{nombre}.png", img_bytes)
+    
+    zip_buffer.seek(0)
+    return zip_buffer
+
+# ==================== PANEL DE CONFIGURACIÓN ====================
+
+def panel_configuracion():
+    """Panel de configuración lateral"""
+    st.sidebar.title("⚙️ Panel de Configuración")
+    
+    config = load_configuration()
+    
+    # Sección 1: Ordenamiento
+    st.sidebar.subheader("📊 Visualización del Heatmap")
+    orden = st.sidebar.selectbox(
+        "Ordenar colaboradores por:",
+        ["Promedio (mayor a menor)", "Promedio (menor a mayor)", "Alfabético"],
+        index=["Promedio (mayor a menor)", "Promedio (menor a mayor)", "Alfabético"].index(
+            config.get("orden_heatmap", "Promedio (mayor a menor)")
+        )
+    )
+    config["orden_heatmap"] = orden
+    
+    mostrar_valores = st.sidebar.checkbox(
+        "Mostrar valores en celdas",
+        value=config.get("mostrar_valores_heatmap", True)
+    )
+    config["mostrar_valores_heatmap"] = mostrar_valores
+    
+    # Sección 2: Esquema de colores
+    esquema_colores = st.sidebar.selectbox(
+        "Esquema de colores:",
+        ["RdYlGn", "Viridis", "Blues", "RdBu", "Spectral"],
+        index=["RdYlGn", "Viridis", "Blues", "RdBu", "Spectral"].index(
+            config.get("esquema_colores", "RdYlGn")
+        )
+    )
+    config["esquema_colores"] = esquema_colores
+    
+    # Sección 3: Umbrales
+    st.sidebar.subheader("🎯 Umbrales de Evaluación")
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        umbral_bajo = st.number_input(
+            "Bajo (<)",
+            min_value=0.0,
+            max_value=5.0,
+            value=config.get("umbral_bajo", 3.0),
+            step=0.1
+        )
+        config["umbral_bajo"] = umbral_bajo
+    with col2:
+        umbral_alto = st.number_input(
+            "Alto (>)",
+            min_value=0.0,
+            max_value=5.0,
+            value=config.get("umbral_alto", 4.0),
+            step=0.1
+        )
+        config["umbral_alto"] = umbral_alto
+    
+    # Sección 4: Gráficos a incluir
+    st.sidebar.subheader("📈 Gráficos a Incluir")
+    graficos = config.get("graficos_incluir", {})
+    graficos["heatmap"] = st.sidebar.checkbox("Mapa de Calor", value=True)
+    graficos["top10"] = st.sidebar.checkbox("Top 10 Colaboradores", value=True)
+    graficos["barras_competencias"] = st.sidebar.checkbox("Barras de Competencias", value=True)
+    graficos["distribucion"] = st.sidebar.checkbox("Distribución", value=True)
+    graficos["radar"] = st.sidebar.checkbox("Gráfico Radar", value=False)
+    config["graficos_incluir"] = graficos
+    
+    # Sección 5: Personalización
+    st.sidebar.subheader("🎨 Personalización")
+    nombre_empresa = st.sidebar.text_input(
+        "Nombre de la empresa:",
+        value=config.get("nombre_empresa", ""),
+        placeholder="Ej: Empresa ABC"
+    )
+    config["nombre_empresa"] = nombre_empresa
+    
+    # Guardar configuración
+    if st.sidebar.button("💾 Guardar Configuración", use_container_width=True):
+        save_configuration(config)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📋 Configuración Actual")
+    st.sidebar.json({
+        "Orden": config["orden_heatmap"],
+        "Colores": config["esquema_colores"],
+        "Umbrales": f"{config['umbral_bajo']} - {config['umbral_alto']}"
+    })
+    
+    return config
+
+# ==================== APLICACIÓN PRINCIPAL ====================
+
+def main():
+    # Header
+    st.markdown('<h1 class="main-header">ITKAP Intelligence Suite</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Sistema Configurable de Análisis de Competencias HR v2.0</p>', unsafe_allow_html=True)
+    
+    # Panel de configuración
+    config = panel_configuracion()
+    
+    # Upload de archivo
+    st.markdown("### 📁 Cargar Datos")
+    uploaded_file = st.file_uploader(
+        "Sube tu archivo Excel con evaluaciones de competencias",
+        type=['xlsx', 'xls'],
+        help="El archivo debe contener una columna 'Nombre' y columnas numéricas con las competencias"
+    )
     
     if uploaded_file:
-        with st.spinner(MESSAGES.INFO_LOADING):
-            result = data_service.process_excel_file(uploaded_file)
-            if result.success:
-                st.session_state.data = result.data
-                st.session_state.competency_map = result.competency_map
-                st.session_state.upload_timestamp = datetime.now()
-                st.balloons()
-                ui.render_success_message(MESSAGES.SUCCESS_UPLOAD)
+        try:
+            # Cargar datos
+            df = pd.read_excel(uploaded_file)
+            
+            # Procesar datos
+            df_competencias, df_info, stats_competencias, competencias_cols = process_data(df)
+            
+            # Métricas principales
+            st.markdown("---")
+            st.markdown("### 📊 Métricas Generales")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Colaboradores", len(df_info))
+            with col2:
+                st.metric("Competencias Evaluadas", len(competencias_cols))
+            with col3:
+                st.metric("Promedio General", f"{df_info['Promedio'].mean():.2f}")
+            with col4:
+                mejor = df_info.loc[df_info['Promedio'].idxmax(), 'Nombre']
+                st.metric("Mejor Colaborador", mejor)
+            
+            # Crear visualizaciones según configuración
+            figuras = {}
+            
+            st.markdown("---")
+            st.markdown("### 📈 Visualizaciones")
+            
+            # Heatmap
+            if config["graficos_incluir"].get("heatmap", True):
+                st.markdown("#### Mapa de Calor de Competencias por Colaborador")
+                fig_heatmap = crear_heatmap(df_competencias, df_info, config)
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+                figuras["01_Mapa_de_Calor_Colaboradores"] = fig_heatmap
                 
-                metrics = [
-                    {'label': 'Empleados', 'value': str(result.row_count)},
-                    {'label': 'Competencias', 'value': str(len(result.competency_map))}
-                ]
-                stats.render_kpi_row(metrics)
-                ui.render_info_message("👈 Selecciona 'Dashboard General' en el menú lateral")
-            else:
-                ui.render_error_message(result.error_message)
+                # Mapa de calor de promedios organizacionales
+                st.markdown("#### Mapa de Calor - Promedio Organizacional")
+                fig_heatmap_prom = crear_heatmap_promedios(df_competencias)
+                st.plotly_chart(fig_heatmap_prom, use_container_width=True)
+                figuras["01b_Mapa_Calor_Promedios"] = fig_heatmap_prom
+            
+            col1, col2 = st.columns(2)
+            
+            # Top 10
+            if config["graficos_incluir"].get("top10", True):
+                with col1:
+                    st.markdown("#### Top 10 Colaboradores")
+                    fig_top10 = crear_top10(df_info)
+                    st.plotly_chart(fig_top10, use_container_width=True)
+                    figuras["02_Top_10_Colaboradores"] = fig_top10
+            
+            # Distribución
+            if config["graficos_incluir"].get("distribucion", True):
+                with col2:
+                    st.markdown("#### Distribución por Nivel")
+                    fig_dist = crear_distribucion(df_info, config)
+                    st.plotly_chart(fig_dist, use_container_width=True)
+                    figuras["03_Distribucion"] = fig_dist
+            
+            # Barras de Competencias
+            if config["graficos_incluir"].get("barras_competencias", True):
+                st.markdown("#### Análisis de Competencias Organizacionales")
+                fig_barras = crear_barras_competencias(stats_competencias)
+                st.plotly_chart(fig_barras, use_container_width=True)
+                figuras["04_Competencias_Organizacionales"] = fig_barras
+            
+            # Sección de Exportación
+            st.markdown("---")
+            st.markdown("### 💾 Exportar Reportes")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            # Excel
+            with col1:
+                excel_data = exportar_a_excel(
+                    df, df_competencias, df_info, stats_competencias,
+                    config.get("nombre_empresa", "Empresa")
+                )
+                st.download_button(
+                    label="📊 Descargar Excel",
+                    data=excel_data,
+                    file_name=f"Reporte_Competencias_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            
+            # PowerPoint
+            with col2:
+                # Preparar estadísticas para PowerPoint
+                stats_pptx = {
+                    'total_colaboradores': len(df_info),
+                    'total_competencias': len(competencias_cols),
+                    'promedio_general': df_info['Promedio'].mean(),
+                    'mejor_colaborador': df_info.loc[df_info['Promedio'].idxmax(), 'Nombre'],
+                    'mejor_promedio': df_info['Promedio'].max(),
+                    'nivel_alto': len(df_info[df_info['Promedio'] >= config.get('umbral_alto', 4.0)]),
+                    'nivel_medio': len(df_info[(df_info['Promedio'] >= config.get('umbral_bajo', 3.0)) & (df_info['Promedio'] < config.get('umbral_alto', 4.0))]),
+                    'nivel_bajo': len(df_info[df_info['Promedio'] < config.get('umbral_bajo', 3.0)]),
+                    'porcentaje_alto': (len(df_info[df_info['Promedio'] >= config.get('umbral_alto', 4.0)]) / len(df_info)) * 100,
+                    'porcentaje_medio': (len(df_info[(df_info['Promedio'] >= config.get('umbral_bajo', 3.0)) & (df_info['Promedio'] < config.get('umbral_alto', 4.0))]) / len(df_info)) * 100,
+                    'porcentaje_bajo': (len(df_info[df_info['Promedio'] < config.get('umbral_bajo', 3.0)]) / len(df_info)) * 100
+                }
+                
+                pptx_data = generar_presentacion(
+                    figuras,
+                    df_info,  # df_empleados
+                    df_competencias,  # df_competencias
+                    stats_pptx,  # stats
+                    config  # config
+                )
+                
+                st.download_button(
+                    label="📽️ Descargar PowerPoint",
+                    data=pptx_data,
+                    file_name=f"Presentacion_Competencias_{datetime.now().strftime('%Y%m%d')}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    use_container_width=True
+                )
+            
+            # ZIP de imágenes
+            with col3:
+                if figuras:
+                    zip_data = crear_zip_imagenes(figuras)
+                    st.download_button(
+                        label="🖼️ Descargar Imágenes",
+                        data=zip_data,
+                        file_name=f"Graficos_{datetime.now().strftime('%Y%m%d')}.zip",
+                        mime="application/zip",
+                        use_container_width=True
+                    )
+            
+            # Datos raw
+            with col4:
+                csv_data = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Descargar CSV",
+                    data=csv_data,
+                    file_name=f"Datos_Raw_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            
+            # Tabla de datos
+            st.markdown("---")
+            st.markdown("### 📋 Vista de Datos")
+            tab1, tab2 = st.tabs(["Datos Completos", "Estadísticas de Competencias"])
+            
+            with tab1:
+                df_display = pd.concat([df_info, df_competencias], axis=1)
+                df_display = df_display.sort_values('Promedio', ascending=False)
+                st.dataframe(df_display, use_container_width=True, height=400)
+            
+            with tab2:
+                st.dataframe(stats_competencias, use_container_width=True, height=400)
+            
+        except Exception as e:
+            st.error(f"Error al procesar el archivo: {str(e)}")
+            st.exception(e)
+    else:
+        # Instrucciones
+        st.info("""
+        ### 📖 Instrucciones de Uso
+        
+        1. **Sube tu archivo Excel** con las evaluaciones de competencias
+        2. **Configura** los parámetros en el panel lateral
+        3. **Visualiza** los gráficos generados automáticamente
+        4. **Exporta** los reportes en múltiples formatos
+        
+        #### Formato del archivo:
+        - Columna "Nombre" con los nombres de colaboradores
+        - Columnas numéricas con cada competencia evaluada (escala 1-5)
+        - Sin espacios en blanco o valores nulos
+        """)
 
-if selected != "Inicio" and not AppState.has_data():
-    ui.render_empty_state(MESSAGES.ERROR_NO_DATA, "Carga un archivo en Inicio para comenzar.")
-    st.stop()
-
-if AppState.has_data() and selected != "Inicio":
-    # --- PREPARACIÓN DE DATOS CON VALIDACIÓN ---
-    df = st.session_state.data
-    comp_map = st.session_state.competency_map
-    
-    target_key = 'Rango' if scale_mode == "Rango (0-5)" else 'Pct'
-    
-    # DEBUG: Mostrar estructura del competency_map
-    import streamlit as st
-#     with st.expander("🔍 DEBUG: Estructura de Competencias", expanded=False):
-#         st.write(f"**Buscando columnas tipo:** `{target_key}`")
-#         st.write(f"**Total competencias:** {len(comp_map)}")
-#         
-#         # Contar cuántas tienen cada tipo
-#         count_rango = sum(1 for m in comp_map.values() if m.get('Rango'))
-#         count_pct = sum(1 for m in comp_map.values() if m.get('Pct'))
-#         
-#         st.write(f"- Competencias con **Rango**: {count_rango}")
-#         st.write(f"- Competencias con **Pct**: {count_pct}")
-#         
-#         # Mostrar primeras 5 competencias con nombres de columnas completos
-#         st.write("**Primeras 5 competencias:**")
-#         for i, (comp, metrics) in enumerate(list(comp_map.items())[:5]):
-#             rango_col = metrics.get('Rango', 'N/A')
-#             pct_col = metrics.get('Pct', 'N/A')
-#             st.write(f"{i+1}. **{comp}**")
-#             st.write(f"   - Rango: `{rango_col}`")
-#             st.write(f"   - Pct: `{pct_col}`")
-#         
-#         # NUEVO: Mostrar TODAS las columnas del DataFrame original
-#         st.write("---")
-#         st.write("**🔍 ANÁLISIS: Columnas disponibles en el archivo**")
-#         all_cols = list(df.columns)
-#         st.write(f"Total columnas: {len(all_cols)}")
-#         
-#         # Mostrar todas las columnas en grupos
-#         st.write("**TODAS LAS COLUMNAS DEL ARCHIVO:**")
-#         
-#         # Primeras 10 columnas
-#         st.write("**Primeras 10 columnas:**")
-#         for i, col in enumerate(all_cols[:10], 1):
-#             st.code(f"{i}. {col}", language=None)
-#         
-#         # Últimas 10 columnas
-#         if len(all_cols) > 10:
-#             st.write("**Últimas 10 columnas:**")
-#             for i, col in enumerate(all_cols[-10:], len(all_cols)-9):
-#                 st.code(f"{i}. {col}", language=None)
-#         
-#         # Buscar columnas que NO son solo "Rango"
-#         non_rango_cols = [col for col in all_cols if 'Rango' not in col and 'CLAVE' not in col and 'NOMBRE' not in col and 'EDAD' not in col]
-#         if non_rango_cols:
-#             st.write(f"**Columnas que NO son 'Rango' ni fijas: {len(non_rango_cols)}**")
-#             for col in non_rango_cols[:10]:
-#                 st.code(col, language=None)
-    
-    # Construir lista de columnas seleccionadas
-    selected_cols = []
-    for comp, metrics in comp_map.items():
-        # Priorizar la columna del tipo seleccionado
-        if metrics.get(target_key):
-            selected_cols.append(metrics[target_key])
-        # Si no existe, usar la otra columna disponible (fallback)
-        elif target_key == 'Rango' and metrics.get('Pct'):
-            selected_cols.append(metrics['Pct'])
-        elif target_key == 'Pct' and metrics.get('Rango'):
-            selected_cols.append(metrics['Rango'])
-    
-    # DEBUG: Mostrar columnas seleccionadas
-#     with st.expander("🔍 DEBUG: Columnas Seleccionadas", expanded=False):
-#         st.write(f"**Columnas encontradas:** {len(selected_cols)}")
-#         if selected_cols:
-#             st.write("**Primeras 5 columnas:**")
-#             for i, col in enumerate(selected_cols[:5]):
-#                 st.write(f"{i+1}. `{col}`")
-
-    df_plot = data_service.prepare_visualization_data(df, selected_cols)
-    
-    # === CORRECCIÓN DE CRASH: VALIDAR SI HAY DATOS ===
-    if df_plot.empty or df_plot.shape[1] == 0:
-        ui.render_error_message(f"⚠️ **Atención:** No se encontraron datos para la escala seleccionada ({scale_mode}).")
-        st.info("Por favor, cambia la opción en 'Escala de Visualización' en el menú lateral (ej. cambia de Rango a Porcentaje).")
-        st.stop()
-    # ================================================
-
-    # NOTA: org_metrics se calcula dentro de cada página que lo necesita
-    
-    if selected == "Dashboard General":
-        # Calcular métricas organizacionales
-        org_metrics = metrics_calculator.calculate_organizational_metrics(df_plot)
-        
-        # Detectar escala automáticamente
-        scale_info = AppState.get_scale_info(df_plot)
-        
-        ui.render_page_header("Dashboard Organizacional", f"Vista panorámica ({scale_info['label']})")
-        
-        col_l, col_r = st.columns([3,1])
-        with col_r:
-            html_rep = report_generator.generate_executive_report(df_plot, org_metrics['avg_overall'], org_metrics['total_employees'], org_metrics['total_competencies'])
-            button.render_download_button("Descargar Reporte", html_rep, f"Reporte_{datetime.now().strftime('%Y%m%d')}.html")
-        
-        best_comp = df_plot.mean().idxmax()
-        metrics = [
-            {'label': MESSAGES.LABEL_EMPLOYEE_COUNT, 'value': str(org_metrics['total_employees'])},
-            {'label': MESSAGES.LABEL_AVG_SCORE, 'value': scale_info['format'].format(org_metrics['avg_overall']) + scale_info['suffix']},
-            {'label': MESSAGES.LABEL_BEST_COMPETENCY, 'value': scale_info['format'].format(df_plot.mean().max()) + scale_info['suffix'], 'delta': str(best_comp)[:15]+"..."}
-        ]
-        stats.render_kpi_row(metrics)
-        ui.render_divider()
-        
-        st.plotly_chart(create_histogram(df_plot.mean(axis=1)), use_container_width=True)
-        
-        c1, c2 = st.columns(2)
-        with c1: st.plotly_chart(create_ranking_chart(df_plot.mean(axis=1), 5, 'top'), use_container_width=True)
-        with c2: st.plotly_chart(create_ranking_chart(df_plot.mean(axis=1), 5, 'bottom'), use_container_width=True)
-    
-    elif selected == "Análisis Individual":
-        # Calcular métricas organizacionales
-        org_metrics = metrics_calculator.calculate_organizational_metrics(df_plot)
-        
-        # Detectar escala automáticamente
-        scale_info = AppState.get_scale_info(df_plot)
-        
-        ui.render_page_header("Análisis Individual", f"Perfil detallado ({scale_info['label']})")
-        empleado = st.selectbox("Seleccionar Colaborador", df_plot.index.sort_values())
-        
-        ind_avg = df_plot.loc[empleado].mean()
-        diff = ind_avg - org_metrics['avg_overall']
-        
-        metrics = [
-            {'label': 'Promedio Individual', 'value': scale_info['format'].format(ind_avg) + scale_info['suffix']},
-            {'label': 'vs Organización', 'value': f"{diff:+.2f}" + scale_info['suffix'], 'delta': "Diferencia"},
-            {'label': 'Fortaleza', 'value': df_plot.loc[empleado].idxmax()}
-        ]
-        stats.render_kpi_row(metrics)
-        ui.render_divider()
-        
-        # Gráficas
-        st.plotly_chart(create_comparison_chart(df_plot.loc[empleado], df_plot.mean(), empleado), use_container_width=True)
-        st.plotly_chart(create_radar_chart(df_plot.loc[empleado], df_plot.mean(), empleado), use_container_width=True)
-        # Aquí se usa automáticamente el GapAnalysisChart actualizado (semáforo)
-        from charts import create_gap_chart 
-        st.plotly_chart(create_gap_chart(df_plot.loc[empleado], df_plot.mean(), "Semáforo de Brechas"), use_container_width=True)
-        
-        table.render_comparison_table(df_plot.loc[empleado], df_plot.mean())
-    
-    elif selected == "Rankings":
-        # Detectar escala automáticamente
-        scale_info = AppState.get_scale_info(df_plot)
-        
-        ui.render_page_header("Rankings de Desempeño", f"Talento clave en escala {scale_info['label']}")
-        n_val = st.slider("Cantidad", 3, 20, 8)
-        
-        c1, c2 = st.columns(2)
-        with c1: st.plotly_chart(create_ranking_chart(df_plot.mean(axis=1), n_val, 'top'), use_container_width=True)
-        with c2: st.plotly_chart(create_ranking_chart(df_plot.mean(axis=1), n_val, 'bottom'), use_container_width=True)
-        
-        # Crear DataFrame de ranking
-        rank_df = df_plot.mean(axis=1).sort_values(ascending=False).to_frame('Promedio')
-        rank_df.insert(0, 'Posición', range(1, len(rank_df)+1))
-        
-        # Aplicar estilizado personalizado
-        # Determinar vmin y vmax según la escala
-        if scale_info['max'] <= 5:
-            # Escala 0-5
-            vmin, vmax = 0, 5
-        elif scale_info['max'] <= 10:
-            # Escala 0-10
-            vmin, vmax = 0, 10
-        else:
-            # Escala 0-100
-            vmin, vmax = 0, 100
-        
-        # Estilizar solo la columna "Promedio" con semáforo
-        styled_rank = rank_df.style.background_gradient(
-            subset=['Promedio'],
-            cmap='RdYlGn',
-            vmin=vmin,
-            vmax=vmax
-        ).format({'Promedio': '{:.1f}', 'Posición': '{:.0f}'})
-        
-        # Renderizar con estilo personalizado
-        st.dataframe(styled_rank, use_container_width=True, height=500)
-    
-    elif selected == "Matriz de Calor":
-        # Detectar escala automáticamente
-        scale_info = AppState.get_scale_info(df_plot)
-        
-        ui.render_page_header("Matriz de Calor", f"Mapa global ({scale_info['label']})")
-        st.plotly_chart(create_heatmap(df_plot), use_container_width=True)
-        
-        stats_df = metrics_calculator.calculate_competency_stats(df_plot)
-        table.render_styled_dataframe(stats_df)
-    
-    elif selected == "Reporte General":
-        # Calcular métricas organizacionales
-        org_metrics = metrics_calculator.calculate_organizational_metrics(df_plot)
-        
-        ui.render_page_header("Generador de Reportes", "Exportación ejecutiva")
-        if st.button("Generar Reporte"):
-            st.success("Reporte generado")
-        
-        html_rep = report_generator.generate_executive_report(df_plot, org_metrics['avg_overall'], org_metrics['total_employees'], org_metrics['total_competencies'])
-        button.render_download_button("Descargar HTML", html_rep, f"Reporte_{datetime.now().strftime('%Y%m%d')}.html")
-    
-# Footer
-st.markdown("<br><br><br>", unsafe_allow_html=True)
-st.markdown(f"<div style='text-align: center; color: #aaa;'>{CONFIG.APP_NAME} v{CONFIG.APP_VERSION} © 2025</div>", unsafe_allow_html=True)
+if __name__ == "__main__":
+    main()

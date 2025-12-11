@@ -1,365 +1,344 @@
 # ⚡ GUÍA DE INICIO RÁPIDO
 
-## ITKAP Intelligence Suite v3.0 - 5 Minutos a la Productividad
+## 🚀 Empezar en 5 Minutos
 
----
-
-## 🚀 INSTALACIÓN EN 3 PASOS
-
-### Paso 1: Preparar Ambiente
+### Paso 1: Instalar (2 minutos)
 
 ```bash
-# Crear carpeta del proyecto
-mkdir itkap-suite
-cd itkap-suite
+# 1. Abrir terminal en la carpeta del proyecto
+cd itkap_hr_suite
 
-# Crear entorno virtual
-python -m venv venv
+# 2. Instalar todo (una línea)
+pip install -r requirements.txt --break-system-packages
 
-# Activar entorno
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-```
-
-✅ **Resultado:** Ambiente aislado listo
-
----
-
-### Paso 2: Instalar Dependencias
-
-```bash
-# Instalar todas las dependencias
-pip install -r requirements.txt
-```
-
-**Tiempo:** ~2 minutos
-
-✅ **Resultado:** Todas las librerías instaladas
-
----
-
-### Paso 3: Ejecutar Aplicación
-
-```bash
-# Iniciar la aplicación
+# 3. Ejecutar
 streamlit run app.py
 ```
 
-**Tiempo:** ~5 segundos
+### Paso 2: Probar (1 minuto)
 
-✅ **Resultado:** App corriendo en http://localhost:8501
+1. **Abrir navegador**: Se abre automáticamente en `http://localhost:8501`
+2. **Cargar archivo**: Click en "Browse files" y selecciona `ejemplo_datos.xlsx`
+3. **Ver resultados**: ¡Listo! Todos los gráficos aparecen automáticamente
 
----
+### Paso 3: Exportar (30 segundos)
 
-## 📁 PRIMER USO
-
-### 1. Abrir la Aplicación
-
-```
-http://localhost:8501
-```
-
-Verás la pantalla de **"Inicio"**
+1. **Excel**: Click en "📊 Descargar Excel"
+2. **PowerPoint**: Click en "📽️ Descargar PowerPoint"
+3. **Imágenes**: Click en "🖼️ Descargar Imágenes"
 
 ---
 
-### 2. Cargar tu Archivo
+## 🎨 Personalizar (2 minutos)
 
-1. **Arrastra** tu archivo Excel a la zona de carga  
-   O  
-2. **Haz clic** en "Browse files"
+### En el Panel Lateral:
 
-**Formato soportado:** .xlsx o .xlsm
-
----
-
-### 3. Esperar Procesamiento
-
+**1. Cambiar orden del heatmap:**
 ```
-🔄 Procesando datos...
+☐ Promedio (mayor a menor) ← Por defecto
+☐ Promedio (menor a mayor)
+☐ Alfabético
 ```
 
-**Tiempo:** ~3 segundos
-
-✅ Verás mensaje de **éxito**
-
----
-
-### 4. Explorar Análisis
-
-Usa el menú lateral para navegar:
-
+**2. Cambiar colores:**
 ```
-📂 Inicio              ← Estás aquí
-📊 Dashboard General   ← Ve aquí
-👤 Análisis Individual
-🏆 Rankings
-🔥 Matriz de Calor
-📄 Reporte General
+☐ RdYlGn (Rojo-Verde) ← Por defecto
+☐ Viridis (Azul-Amarillo)
+☐ Blues (Azules)
+☐ RdBu (Rojo-Azul)
+☐ Spectral (Multicolor)
+```
+
+**3. Ajustar umbrales:**
+```
+Bajo (<): 3.0
+Alto (>): 4.0
+```
+
+**4. Poner nombre de empresa:**
+```
+Nombre de la empresa: ____________
+```
+
+**5. Guardar:**
+```
+[💾 Guardar Configuración]
 ```
 
 ---
 
-## 📊 NAVEGACIÓN RÁPIDA
+## 📊 Usando con Datos Reales
 
-### Dashboard General
+### Tu archivo Excel debe tener:
 
-**Qué verás:**
-- 4 KPIs principales
-- Histograma de distribución
-- Top 5 mejores
-- Top 5 a desarrollar
+```
+┌─────────────┬──────────────┬──────────────┬──────────────┐
+│ Nombre      │ Liderazgo    │ Comunicación │ Creatividad  │
+├─────────────┼──────────────┼──────────────┼──────────────┤
+│ Juan Pérez  │ 4.5          │ 4.2          │ 3.8          │
+│ Ana López   │ 3.9          │ 4.5          │ 4.1          │
+│ ...         │ ...          │ ...          │ ...          │
+└─────────────┴──────────────┴──────────────┴──────────────┘
+```
 
-**Acción:** Haz clic en **"📄 Descargar Reporte"**
-
----
-
-### Análisis Individual
-
-**Qué verás:**
-- Selector de empleado
-- 3 métricas individuales
-- Gráfico comparativo
-- Tabla detallada
-
-**Acción:** Explora diferentes empleados
+**Requisitos:**
+- ✅ Columna "Nombre" (exactamente así)
+- ✅ Columnas numéricas para competencias
+- ✅ Valores 1-5
+- ✅ Sin celdas vacías
 
 ---
 
-### Rankings
+## 🎯 Flujo de Trabajo con Cliente
 
-**Qué verás:**
-- Control deslizante (3-20 personas)
-- Top performers
-- Áreas de oportunidad
-- Ranking completo
+### Para Porfirio:
 
-**Acción:** Ajusta cantidad con slider
+**1. Cliente te envía evaluaciones (Excel)**
+   - Formato: Nombre + Competencias numéricas
 
----
+**2. Tú subes el archivo (10 segundos)**
+   - Click en "Browse files"
+   - Selecciona el Excel del cliente
 
-### Matriz de Calor
+**3. Personalizas (2 minutos)**
+   - Panel lateral → Nombre de la empresa
+   - Ajustas colores si quieres
+   - Defines umbrales según su cultura
 
-**Qué verás:**
-- Heatmap completo
-- Colores: Verde (alto), Amarillo (medio), Rojo (bajo)
-- Estadísticas por competencia
+**4. Revisas gráficos (30 segundos)**
+   - Mapa de calor automático (ordenado)
+   - Top 10 colaboradores
+   - Barras de competencias
+   - Distribución por nivel
 
-**Acción:** Identifica patrones visuales
+**5. Exportas TODO (1 minuto)**
+   - PowerPoint → Para presentar
+   - Excel → Para análisis detallado
+   - Imágenes → Para emails/docs
 
----
+**6. Presentas al cliente (1 hora)**
+   - Abres el PowerPoint generado
+   - Explicas cada slide
+   - ¡Cliente feliz!
 
-### Reporte General
-
-**Qué verás:**
-- Información del reporte
-- Botón de descarga
-- Vista previa
-
-**Acción:** Descarga reporte HTML ejecutivo
-
----
-
-## 💡 TIPS RÁPIDOS
-
-### Para Mejores Resultados
-
-✅ **Archivo Excel:**
-- Formato estándar de evaluaciones
-- Filas 9-10 con encabezados
-- Columnas: NOMBRE, CLAVE, EDAD, NIVEL, PERFIL, ÁREA
-
-✅ **Navegación:**
-- Usa menú lateral para cambiar secciones
-- Todos los gráficos son interactivos
-- Pasa el mouse sobre gráficos para info
-
-✅ **Reportes:**
-- HTML se abre en cualquier navegador
-- Convertible a PDF (Ctrl+P → Guardar como PDF)
-- Listo para presentar a dirección
+**Total tiempo: 4-5 horas**
+**Antes: 20-25 horas**
 
 ---
 
-## 🆘 SOLUCIÓN DE PROBLEMAS
+## 💡 Tips Pro
 
-### Error al iniciar app
+### Tip 1: Plantillas por Industria
+Crea configuraciones guardadas mentalmente:
 
+**Salud:**
+- Colores: Blues (profesional)
+- Umbral bajo: 3.5 (más estricto)
+- Umbral alto: 4.5
+
+**Retail:**
+- Colores: RdYlGn (semáforo)
+- Umbral bajo: 3.0 (estándar)
+- Umbral alto: 4.0
+
+**Tech:**
+- Colores: Viridis (moderno)
+- Umbral bajo: 3.5
+- Umbral alto: 4.5
+
+### Tip 2: Branding por Cliente
+- Siempre pon el nombre del cliente
+- Aparece en portada del PowerPoint
+- Se ve súper profesional
+
+### Tip 3: Múltiples Exportaciones
+- Descarga TODOS los formatos
+- Envía PowerPoint por email
+- Deja Excel para análisis profundo
+- Usa imágenes en reportes Word
+
+### Tip 4: Backup
+- Guarda configuración al terminar
+- Exporta CSV raw por si acaso
+- Siempre conserva el Excel original
+
+---
+
+## 🐛 Problemas Comunes
+
+### "ModuleNotFoundError"
 ```bash
-# Verificar instalación
-python verificar_app.py
+# Solución:
+pip install -r requirements.txt --break-system-packages
 ```
 
-### Error al cargar archivo
-
-**Verificar:**
-- ✅ Archivo .xlsx o .xlsm
-- ✅ Tiene datos en filas 9+
-- ✅ Columna NOMBRE existe
-
-### App muy lenta
-
-**Solución:**
-- Cerrar otros procesos
-- Verificar tamaño de archivo (<50MB)
-- Reiniciar la app
-
----
-
-## 📞 AYUDA RÁPIDA
-
-### Documentación Completa
-
-📘 **README.md** - Guía general  
-📗 **ARQUITECTURA_TECNICA.md** - Guía técnica  
-📙 **PROPUESTA_COMERCIAL.md** - Info comercial  
-📕 **INDICE_MAESTRO.md** - Índice de archivos
-
-### Contacto
-
-📧 soporte@itkap.com  
-🌐 www.itkap.com  
-
----
-
-## ⏱️ TIMELINE TÍPICO
-
-```
-Minuto 0:  Descargar archivos
-Minuto 1:  Crear ambiente
-Minuto 2:  Instalar dependencias (automático)
-Minuto 3:  Iniciar app
-Minuto 4:  Cargar primer archivo
-Minuto 5:  Explorando dashboards ✅
+### "Port already in use"
+```bash
+# Solución: Usa otro puerto
+streamlit run app.py --server.port 8502
 ```
 
-**Total:** 5 minutos a productividad completa
-
----
-
-## ✅ CHECKLIST PRIMERA VEZ
-
-- [ ] Python 3.8+ instalado
-- [ ] Archivos del proyecto descargados
-- [ ] Entorno virtual creado
-- [ ] Dependencias instaladas
-- [ ] App ejecutándose
-- [ ] Archivo Excel listo
-- [ ] Datos cargados exitosamente
-- [ ] Explorado todas las secciones
-- [ ] Generado primer reporte
-
----
-
-## 🎯 PRÓXIMOS PASOS
-
-### Después del Primer Uso
-
-1. **Explorar todas las secciones** - Familiarízate con cada módulo
-2. **Generar reportes** - Prueba descarga HTML
-3. **Probar con datos reales** - Usa tus evaluaciones
-4. **Compartir con equipo** - Muestra los dashboards
-5. **Leer documentación** - Profundiza en features
-
-### Para Producción
-
-1. **Configurar servidor** - Deploy en ambiente productivo
-2. **Capacitar usuarios** - Sesión de 2-4 horas
-3. **Establecer proceso** - Flujo regular de uso
-4. **Monitorear uso** - Verificar adopción
-5. **Solicitar feedback** - Mejoras continuas
-
----
-
-## 📊 EJEMPLOS DE USO
-
-### Caso 1: Evaluación Anual
-
-```
-1. Cargar Excel de evaluaciones
-2. Ir a Dashboard General
-3. Revisar KPIs y distribución
-4. Descargar reporte ejecutivo
-5. Presentar a dirección
+### Gráficos no se ven
+```bash
+# Solución: Actualiza plotly
+pip install -U plotly kaleido
 ```
 
-**Tiempo:** 10 minutos
-
----
-
-### Caso 2: 1-on-1 con Empleado
-
-```
-1. Cargar datos actualizados
-2. Ir a Análisis Individual
-3. Seleccionar empleado
-4. Revisar gráfico comparativo
-5. Discutir fortalezas/áreas
+### Error en PowerPoint
+```bash
+# Solución: Reinstala python-pptx
+pip install --upgrade python-pptx
 ```
 
-**Tiempo:** 5 minutos por empleado
+---
+
+## 📱 Demo para Cliente
+
+### Qué mostrarle a Porfirio:
+
+**1. Carga de datos (En vivo)**
+   - "Mira, subo tu Excel aquí..."
+   - [Browse files → ejemplo_datos.xlsx]
+   - "Y automáticamente genera..."
+
+**2. Visualizaciones (En vivo)**
+   - "Mapa de calor ordenado por promedio"
+   - "Top 10 colaboradores destacados"
+   - "Análisis de competencias organizacionales"
+   - "Distribución por nivel"
+
+**3. Personalización (En vivo)**
+   - Panel lateral → "Puedes cambiar..."
+   - Orden: Cambia a alfabético → se actualiza
+   - Colores: Cambia a Viridis → se actualiza
+   - "Todo sin programar"
+
+**4. Exportación (En vivo)**
+   - Click en PowerPoint → "Mira, se descarga..."
+   - Abre el PPTX → "7 slides profesionales listos"
+   - Click en Excel → "4 hojas con análisis"
+   - Click en Imágenes → "ZIP con todos los gráficos"
+
+**Total demo: 10-15 minutos**
 
 ---
 
-### Caso 3: Identificar Talento
+## 🎬 Script de Presentación
 
-```
-1. Cargar evaluaciones
-2. Ir a Rankings
-3. Ajustar a Top 10
-4. Identificar top performers
-5. Revisar en Análisis Individual
-```
+### Para Kenneth presentando a Porfirio:
 
-**Tiempo:** 15 minutos
+**Inicio (1 min):**
+> "Porfirio, te voy a mostrar el sistema que hablamos. Es flexible, lo controlas tú, y exporta a Excel, PowerPoint e imágenes."
 
----
+**Carga de datos (2 min):**
+> "Subes el Excel del cliente aquí... [cargar archivo]... Y automáticamente genera todo el análisis."
 
-## 🎨 PERSONALIZACIÓN RÁPIDA
+**Visualizaciones (3 min):**
+> "Mira, este es el mapa de calor ORDENADO por promedio como me pediste. Los mejores colaboradores arriba.
+>
+> Aquí está el Top 10 de tu empresa.
+>
+> Y este gráfico de barras muestra las competencias organizacionales, igual que el que me mostraste."
 
-### Cambiar Colores
+**Personalización (3 min):**
+> "Lo mejor: TODO lo puedes cambiar sin programar.
+>
+> [Panel lateral]
+>
+> Quieres ordenar alfabético? Click. Quieres cambiar colores? Click. Quieres ajustar umbrales? Click.
+>
+> Pones el nombre del cliente aquí y aparece en la portada."
 
-Editar `config.py`:
+**Exportación (3 min):**
+> "Y ahora lo bueno:
+>
+> [Click PowerPoint] → Presentación ejecutiva completa, 7 slides listos para presentar.
+>
+> [Click Excel] → 4 hojas con todo el análisis detallado.
+>
+> [Click Imágenes] → Todos los gráficos en PNG para usar donde quieras.
+>
+> Todo en menos de 1 minuto."
 
-```python
-@dataclass(frozen=True)
-class ColorPalette:
-    PRIMARY: str = "#0E1B2E"      # ← Tu color primario
-    SECONDARY: str = "#F27200"    # ← Tu color secundario
-```
+**Cierre (1 min):**
+> "¿Y el precio? 50 mil pesos. Pagas 20K al inicio, 15K al mes, 15K al mes 2.
+>
+> Con 3 proyectos recuperas. Después todo es ganancia.
+>
+> ¿Qué dices?"
 
-**Reiniciar app para ver cambios**
-
----
-
-## 🏆 CARACTERÍSTICAS CLAVE
-
-### Lo que hace único a ITKAP Suite
-
-✨ **Arquitectura Enterprise** - Clean code, fácil mantener  
-⚡ **Velocidad** - Procesamiento en segundos  
-🎨 **Diseño Profesional** - Listo para presentar  
-📊 **Análisis Completo** - 6 tipos de visualizaciones  
-📄 **Reportes Ejecutivos** - HTML profesionales  
-🔒 **Seguro** - Datos locales, sin cloud  
-
----
-
-<div align="center">
-
-## 🎉 ¡Listo para Comenzar!
-
-**¿Dudas?** → soporte@itkap.com  
-**¿Demo personalizada?** → ventas@itkap.com  
-**¿Más info?** → Leer README.md
+**Total: 12-15 minutos**
 
 ---
 
-**ITKAP Intelligence Suite v3.0**  
-*5 Minutos a la Productividad*
+## 📋 Checklist de Entrega
 
-© 2025 ITKAP Consulting
+### Cuando cierres con Porfirio:
 
-</div>
+**Día 1:**
+- [ ] Contrato firmado
+- [ ] Primer pago recibido
+- [ ] Enviar código completo por email
+- [ ] Enviar video tutorial
+
+**Día 2:**
+- [ ] Sesión de capacitación parte 1 (1 hr)
+- [ ] Instalar en su computadora
+- [ ] Probar con datos de ejemplo
+- [ ] Resolver dudas
+
+**Día 7:**
+- [ ] Sesión de capacitación parte 2 (1 hr)
+- [ ] Probar con datos reales
+- [ ] Tips avanzados
+- [ ] Dudas finales
+
+**Día 30:**
+- [ ] Segundo pago
+- [ ] Check-in: ¿Cómo va?
+- [ ] Resolver problemas si hay
+
+**Día 60:**
+- [ ] Tercer pago
+- [ ] Cierre formal
+- [ ] Testimonio (si está feliz)
+- [ ] Referidos (si está MUY feliz)
+
+---
+
+## 🎁 Bonus: Qué Incluir en la Entrega
+
+1. **Código Completo**
+   - Carpeta `itkap_hr_suite/` con todo
+
+2. **Documentación**
+   - README.md (manual completo)
+   - GUIA_COMERCIAL.md (para él vender)
+   - Esta guía rápida
+
+3. **Ejemplos**
+   - ejemplo_datos.xlsx
+   - Capturas de pantalla
+   - Video tutorial (grábalo con Loom)
+
+4. **Extras**
+   - Contrato de licencia
+   - Factura
+   - Recibo de pagos
+
+---
+
+## 🚀 ¡Listo!
+
+Ya tienes TODO para:
+1. ✅ Usar el sistema tú mismo
+2. ✅ Mostrárselo a Porfirio
+3. ✅ Cerrar la venta
+4. ✅ Entregarlo profesionalmente
+
+**¿Dudas?**
+- Revisa el README.md completo
+- Prueba con ejemplo_datos.xlsx
+- Experimenta con las configuraciones
+
+**¡A vender!** 💰
